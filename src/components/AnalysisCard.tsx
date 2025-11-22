@@ -20,7 +20,7 @@ const AnalysisCard = ({ data, compact = false, onViewDetails }: AnalysisCardProp
       className={`glass-surface relative overflow-hidden rounded-3xl p-6 transition-all hover:bg-white dark:hover:bg-slate-900/60 ${compact ? 'space-y-5' : 'space-y-8'
         }`}
     >
-      {/* Background glow based on verdict */}
+      {/* Background glow based on verdict yeqhh*/}
       <div className={`absolute -right-20 -top-20 h-64 w-64 rounded-full blur-3xl opacity-20 pointer-events-none ${data.verdict === 'phish' ? 'bg-rose-500' :
           data.verdict === 'safe' ? 'bg-emerald-500' : 'bg-amber-500'
         }`} />
