@@ -46,7 +46,9 @@ type TextAnalysisResponse = {
   timestamp?: string;
 };
 
-const RAW_API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? '';
+const prodFallback = '/api/proxy';
+const rawEnvBase = import.meta.env.VITE_API_BASE_URL ?? (import.meta.env.PROD ? prodFallback : '');
+const RAW_API_BASE_URL = rawEnvBase.replace(/\/$/, '');
 const DEV_PROXY_PATH = import.meta.env.VITE_DEV_PROXY_PATH?.replace(/\/$/, '') ?? '';
 
 const API_BASE_URL = import.meta.env.DEV && DEV_PROXY_PATH ? DEV_PROXY_PATH : RAW_API_BASE_URL;
