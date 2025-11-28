@@ -6,6 +6,7 @@ import { useTheme } from '@hooks/useTheme';
 const primaryLinks = [
     { label: 'Home', to: '/' },
     { label: 'Features', to: '/#features' },
+    { label: 'Documentation', to: '/documentation' },
     { label: 'About', to: '/about' },
     { label: 'Analyze', to: '/analyze' }
 ];
@@ -16,6 +17,10 @@ const prefetchAnalyze = () => {
 
 const prefetchAbout = () => {
     import('@pages/About');
+};
+
+const prefetchDocumentation = () => {
+    import('@pages/Documentation');
 };
 
 const NavBar = () => {
@@ -38,9 +43,9 @@ const NavBar = () => {
         setOpen(false);
     }, [location]);
 
-    const linkClasses = ({ isActive }: { isActive: boolean }) =>
-        `relative px-3 py-2 text-sm font-medium transition-colors ${isActive ? 'text-white dark:text-white' : 'text-slate-400 hover:text-white dark:text-slate-600 dark:hover:text-slate-900'
-        }`;
+    const linkClasses = () => 'relative px-4 py-2 text-sm font-medium text-white';
+
+    const highlightActive = () => false;
 
     return (
         <header className="fixed left-0 right-0 top-0 z-40 px-4">
@@ -102,32 +107,25 @@ const NavBar = () => {
                 >
                     {primaryLinks.map(({ label, to }) =>
                         to.startsWith('/#') ? (
-                            <a
+                            <Link
                                 key={label}
-                                href={to.replace('/#', '#')}
-                                className="relative px-4 py-2 text-sm font-medium text-slate-400 transition-colors hover:text-white"
+                                to={to}
+                                className="relative px-4 py-2 text-sm font-medium text-white"
                             >
                                 {label}
-                            </a>
+                            </Link>
                         ) : (
                             <NavLink
                                 key={label}
                                 to={to}
                                 className={linkClasses}
-                                onMouseEnter={label === 'Analyze' ? prefetchAnalyze : label === 'About' ? prefetchAbout : undefined}
+                                onMouseEnter={() => {
+                                    if (label === 'Analyze') prefetchAnalyze();
+                                    if (label === 'About') prefetchAbout();
+                                    if (label === 'Documentation') prefetchDocumentation();
+                                }}
                             >
-                                {({ isActive }) => (
-                                    <>
-                                        {label}
-                                        {isActive && (
-                                            <motion.div
-                                                layoutId="navbar-indicator"
-                                                className="absolute inset-0 -z-10 rounded-full bg-white/10"
-                                                transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                                            />
-                                        )}
-                                    </>
-                                )}
+                                {label}
                             </NavLink>
                         )
                     )}

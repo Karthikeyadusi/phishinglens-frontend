@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import NavBar from '@components/NavBar';
 import Home from '@pages/Home';
+import Documentation from '@pages/Documentation';
 import { useTheme } from '@hooks/useTheme';
 
 const Analyze = lazy(() => import('@pages/Analyze'));
@@ -60,6 +61,7 @@ const AppShell = () => {
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/analyze" element={<Analyze />} />
+            <Route path="/documentation" element={<Documentation />} />
             <Route path="/about" element={<About />} />
           </Routes>
         </Suspense>

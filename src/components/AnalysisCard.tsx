@@ -13,7 +13,11 @@ const verdictStyles: Record<AnalyzeResponse['verdict'], string> = {
 };
 
 const AnalysisCard = ({ data, compact = false, onViewDetails }: AnalysisCardProps) => {
-  const probPercent = Math.round(data.phishing_prob * 100);
+  const phishingPercent = Math.round(data.phishing_prob * 100);
+  const safetyPercent = Math.max(0, 100 - phishingPercent);
+  const keyFindings = data.visual_reasons.slice(0, 4);
+  const detectedBrands = data.detected_brands.slice(0, 4);
+  const extractedSamples = data.extracted_urls.slice(0, 3);
 
   return (
     <article
@@ -32,9 +36,12 @@ const AnalysisCard = ({ data, compact = false, onViewDetails }: AnalysisCardProp
             <span className={`rounded-full border px-4 py-1.5 text-sm font-bold uppercase tracking-wide shadow-sm ring-1 ring-inset ${verdictStyles[data.verdict]}`}>
               {data.verdict}
             </span>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-4xl font-black tracking-tight text-slate-900 dark:text-white">{probPercent}%</span>
-              <span className="text-sm font-medium text-slate-500 dark:text-slate-400">probability</span>
+            <div className="space-y-1">
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-4xl font-black tracking-tight text-slate-900 dark:text-white">{phishingPercent}%</span>
+                <span className="text-sm font-medium text-slate-500 dark:text-slate-400">phishing likelihood</span>
+              </div>
+              <p className="text-xs uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Model confidence (phishing)</p>
             </div>
           </div>
         </div>
@@ -54,15 +61,17 @@ const AnalysisCard = ({ data, compact = false, onViewDetails }: AnalysisCardProp
 
       <div className="relative space-y-2">
         <div className="flex justify-between text-xs font-medium uppercase tracking-wider text-slate-600 dark:text-slate-500">
-          <span>Safety Score</span>
-          <span>{100 - probPercent}/100</span>
+          <span>Safe meter</span>
+          <span>{safetyPercent}/100</span>
         </div>
-        <div className="probability-bar h-3 bg-slate-200 dark:bg-slate-800/50 ring-1 ring-slate-300 dark:ring-white/5">
+        <div className="probability-bar relative h-3 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800/50 ring-1 ring-slate-300 dark:ring-white/5">
           <div
-            className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-emerald-500 via-amber-500 to-rose-500 transition-all duration-1000 ease-out"
-            style={{ width: `${probPercent}%` }}
-          >
-            <div className="absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 translate-x-1/2 rounded-full border-2 border-slate-900 bg-white shadow-lg" />
+            className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-rose-500 via-amber-500 to-emerald-500 transition-all duration-700 ease-out"
+            style={{ width: `${safetyPercent}%` }}
+          />
+          <div className="absolute inset-0 flex items-center justify-between px-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <span>0%</span>
+            <span>100%</span>
           </div>
         </div>
       </div>
@@ -86,7 +95,116 @@ const AnalysisCard = ({ data, compact = false, onViewDetails }: AnalysisCardProp
             </li>
           ))}
         </ul>
+        <p className="mt-2 text-xs text-slate-500 dark:text-slate-500">Scores reflect each source's estimated phishing probability.</p>
       </div>
+
+      <div className="relative grid gap-4 rounded-3xl border border-slate-200/80 bg-white/70 p-5 text-sm dark:border-white/10 dark:bg-white/5 sm:grid-cols-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Key Findings</p>
+          {keyFindings.length ? (
+            <ul className="mt-3 space-y-1 text-slate-700 dark:text-slate-200">
+              {keyFindings.map((reason) => (
+                <li key={reason} className="flex items-start gap-2 text-xs sm:text-sm">
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-400" />
+                  <span>{reason}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-xs italic text-slate-400">No reasons reported</p>
+          )}
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Detected Brands</p>
+          {detectedBrands.length ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {detectedBrands.map((brand) => (
+                <span
+                  key={brand}
+                  className="rounded-full bg-brand-500/10 px-3 py-1 text-xs font-semibold text-brand-600 dark:text-brand-300"
+                >
+                  {brand}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-xs italic text-slate-400">No brand collisions</p>
+          )}
+        </div>
+
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-400">Extracted URLs</p>
+          {extractedSamples.length ? (
+            <ul className="mt-3 space-y-1 font-mono text-[11px] text-slate-600 dark:text-slate-300">
+              {extractedSamples.map((url) => (
+                <li key={url} className="truncate" title={url}>
+                  {url}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-xs italic text-slate-400">No URLs extracted</p>
+          )}
+        </div>
+      </div>
+
+      {data.agent && (
+        <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-slate-900 via-slate-950 to-slate-950 p-5 text-white">
+          <div className="absolute -right-10 top-1/2 h-32 w-32 -translate-y-1/2 rounded-full bg-brand-500/20 blur-3xl" aria-hidden />
+          <div className="relative flex flex-wrap items-center justify-between gap-4">
+            <div className="space-y-1">
+              <p className="text-xs uppercase tracking-[0.4em] text-sky-300/80">Agent Conclusion</p>
+              <p className="text-base text-slate-200">{data.agent.conclusion}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs uppercase tracking-[0.4em] text-slate-500">Elapsed</p>
+              <p className="text-2xl font-semibold">{(data.agent.elapsed_ms / 1000).toFixed(2)}s</p>
+            </div>
+          </div>
+          <div className="relative mt-6 h-1.5 w-full rounded-full bg-white/10">
+            <div
+              className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-400"
+              style={{ width: `${Math.min((data.agent.elapsed_ms / 1500) * 100, 100)}%` }}
+            />
+          </div>
+          <div className="mt-6 flex flex-wrap gap-2">
+            {data.agent.steps.map((step) => {
+              const actionLabel = step.action === 'skipped' ? 'Skipped' : step.action === 'added' ? 'Ad-hoc' : null;
+              const actionTone = step.action === 'skipped'
+                ? 'bg-violet-500/10 text-violet-200 border-violet-400/30'
+                : 'bg-cyan-500/10 text-cyan-200 border-cyan-400/30';
+
+              return (
+                <span
+                  key={step.id}
+                  className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium uppercase tracking-wide"
+                  title={step.reason}
+                >
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      step.status === 'complete'
+                        ? 'bg-emerald-400'
+                        : step.status === 'running'
+                          ? 'bg-amber-300'
+                          : 'bg-slate-500'
+                    }`}
+                  />
+                  <span className="text-white/90">{step.title}</span>
+                  {step.action !== 'skipped' && (
+                    <span className="text-slate-400">· {step.status}</span>
+                  )}
+                  {actionLabel && (
+                    <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${actionTone}`}>
+                      {actionLabel}
+                    </span>
+                  )}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </article>
   );
 };

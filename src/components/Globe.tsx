@@ -1,18 +1,57 @@
-import { useRef, useMemo } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import { OrbitControls, Stars } from '@react-three/drei';
 import * as THREE from 'three';
+import { fetchRadarAttackPairs, RadarAttackPair } from '@utils/radarClient';
+import { getCountryCoordinates } from '@utils/countryCoordinates';
 
-// Mock threat data with lat/long coordinates
-const mockThreats = [
-    { id: 1, lat: 40.7128, lon: -74.0060, severity: 'high' as const, country: 'USA' }, // New York
-    { id: 2, lat: 51.5074, lon: -0.1278, severity: 'medium' as const, country: 'UK' }, // London
-    { id: 3, lat: 35.6762, lon: 139.6503, severity: 'high' as const, country: 'Japan' }, // Tokyo
-    { id: 4, lat: -33.8688, lon: 151.2093, severity: 'low' as const, country: 'Australia' }, // Sydney
-    { id: 5, lat: 55.7558, lon: 37.6173, severity: 'high' as const, country: 'Russia' }, // Moscow
-    { id: 6, lat: 28.6139, lon: 77.2090, severity: 'medium' as const, country: 'India' }, // Delhi
-    { id: 7, lat: -23.5505, lon: -46.6333, severity: 'low' as const, country: 'Brazil' }, // São Paulo
-    { id: 8, lat: 48.8566, lon: 2.3522, severity: 'medium' as const, country: 'France' }, // Paris
+type Severity = 'high' | 'medium' | 'low';
+
+interface MarkerInput {
+    id: string;
+    code: string;
+    country: string;
+    lat: number;
+    lon: number;
+    severity: Severity;
+}
+
+interface ArcInput {
+    id: string;
+    originCode: string;
+    targetCode: string;
+    severity: Severity;
+    magnitude: number;
+}
+
+const severityColors: Record<Severity, string> = {
+    high: '#ef4444',
+    medium: '#f59e0b',
+    low: '#10b981',
+};
+
+const severityRank: Record<Severity, number> = { low: 1, medium: 2, high: 3 };
+
+const fallbackMarkers: MarkerInput[] = [
+    { id: 'US', code: 'US', country: 'United States', lat: 40.7128, lon: -74.006, severity: 'high' },
+    { id: 'GB', code: 'GB', country: 'United Kingdom', lat: 51.5074, lon: -0.1278, severity: 'medium' },
+    { id: 'JP', code: 'JP', country: 'Japan', lat: 35.6762, lon: 139.6503, severity: 'high' },
+    { id: 'AU', code: 'AU', country: 'Australia', lat: -33.8688, lon: 151.2093, severity: 'low' },
+    { id: 'RU', code: 'RU', country: 'Russia', lat: 55.7558, lon: 37.6173, severity: 'high' },
+    { id: 'IN', code: 'IN', country: 'India', lat: 28.6139, lon: 77.209, severity: 'medium' },
+    { id: 'BR', code: 'BR', country: 'Brazil', lat: -23.5505, lon: -46.6333, severity: 'low' },
+    { id: 'FR', code: 'FR', country: 'France', lat: 48.8566, lon: 2.3522, severity: 'medium' },
+];
+
+const fallbackArcs: ArcInput[] = [
+    { id: 'us-gb', originCode: 'US', targetCode: 'GB', severity: 'medium', magnitude: 12 },
+    { id: 'gb-jp', originCode: 'GB', targetCode: 'JP', severity: 'high', magnitude: 15 },
+    { id: 'jp-ru', originCode: 'JP', targetCode: 'RU', severity: 'high', magnitude: 11 },
+    { id: 'ru-in', originCode: 'RU', targetCode: 'IN', severity: 'medium', magnitude: 9 },
+    { id: 'au-jp', originCode: 'AU', targetCode: 'JP', severity: 'low', magnitude: 5 },
+    { id: 'br-us', originCode: 'BR', targetCode: 'US', severity: 'medium', magnitude: 8 },
+    { id: 'fr-gb', originCode: 'FR', targetCode: 'GB', severity: 'medium', magnitude: 7 },
+    { id: 'in-au', originCode: 'IN', targetCode: 'AU', severity: 'low', magnitude: 4 },
 ];
 
 // Convert lat/long to 3D coordinates on sphere
@@ -29,18 +68,12 @@ function latLongToVector3(lat: number, lon: number, radius: number) {
 
 interface ThreatMarkerProps {
     position: THREE.Vector3;
-    severity: 'high' | 'medium' | 'low';
+    severity: Severity;
 }
 
 const ThreatMarker = ({ position, severity }: ThreatMarkerProps) => {
     const meshRef = useRef<THREE.Mesh>(null);
     const glowRef = useRef<THREE.Mesh>(null);
-
-    const colorMap = {
-        high: '#ef4444',
-        medium: '#f59e0b',
-        low: '#10b981',
-    };
 
     useFrame((state) => {
         if (meshRef.current) {
@@ -59,7 +92,7 @@ const ThreatMarker = ({ position, severity }: ThreatMarkerProps) => {
             <mesh ref={meshRef}>
                 <sphereGeometry args={[0.02, 16, 16]} />
                 <meshBasicMaterial 
-                    color={colorMap[severity]} 
+                    color={severityColors[severity]} 
                     transparent 
                     opacity={1}
                 />
@@ -68,7 +101,7 @@ const ThreatMarker = ({ position, severity }: ThreatMarkerProps) => {
             <mesh scale={2}>
                 <sphereGeometry args={[0.02, 16, 16]} />
                 <meshBasicMaterial
-                    color={colorMap[severity]}
+                    color={severityColors[severity]}
                     transparent
                     opacity={0.6}
                     blending={THREE.AdditiveBlending}
@@ -78,7 +111,7 @@ const ThreatMarker = ({ position, severity }: ThreatMarkerProps) => {
             <mesh ref={glowRef}>
                 <sphereGeometry args={[0.02, 16, 16]} />
                 <meshBasicMaterial
-                    color={colorMap[severity]}
+                    color={severityColors[severity]}
                     transparent
                     opacity={0.3}
                     blending={THREE.AdditiveBlending}
@@ -205,31 +238,51 @@ const Earth = () => {
     );
 };
 
-const GlobeScene = () => {
-    const threatMarkers = mockThreats.map((threat) => ({
-        ...threat,
-        position: latLongToVector3(threat.lat, threat.lon, 1.02),
-    }));
+interface GlobeSceneProps {
+    markers: MarkerInput[];
+    arcs: ArcInput[];
+}
 
-    // Create arcs between random threat pairs
-    const arcs = useMemo(() => {
-        const connections = [
-            { from: 0, to: 1, color: '#0ea5e9' }, // NYC to London
-            { from: 1, to: 2, color: '#0ea5e9' }, // London to Tokyo
-            { from: 2, to: 4, color: '#ec4899' }, // Tokyo to Moscow
-            { from: 4, to: 5, color: '#f59e0b' }, // Moscow to Delhi
-            { from: 3, to: 2, color: '#10b981' }, // Sydney to Tokyo
-            { from: 6, to: 0, color: '#0ea5e9' }, // São Paulo to NYC
-            { from: 7, to: 1, color: '#ec4899' }, // Paris to London
-            { from: 5, to: 3, color: '#f59e0b' }, // Delhi to Sydney
-        ];
+const GlobeScene = ({ markers, arcs }: GlobeSceneProps) => {
+    const markerPositions = useMemo(() => {
+        const map = new Map<string, THREE.Vector3>();
+        markers.forEach((marker) => {
+            map.set(marker.code, latLongToVector3(marker.lat, marker.lon, 1.02));
+        });
+        return map;
+    }, [markers]);
 
-        return connections.map(conn => ({
-            start: threatMarkers[conn.from].position,
-            end: threatMarkers[conn.to].position,
-            color: conn.color,
-        }));
-    }, [threatMarkers]);
+    const threatMarkers = useMemo(() =>
+        markers
+            .map((marker) => {
+                const position = markerPositions.get(marker.code);
+                if (!position) return null;
+                return {
+                    id: marker.id,
+                    position,
+                    severity: marker.severity,
+                };
+            })
+            .filter(Boolean) as Array<{ id: string; position: THREE.Vector3; severity: Severity }>,
+        [markers, markerPositions]
+    );
+
+    const threatArcs = useMemo(() =>
+        arcs
+            .map((arc) => {
+                const start = markerPositions.get(arc.originCode);
+                const end = markerPositions.get(arc.targetCode);
+                if (!start || !end) return null;
+                return {
+                    id: arc.id,
+                    start,
+                    end,
+                    color: severityColors[arc.severity],
+                };
+            })
+            .filter(Boolean) as Array<{ id: string; start: THREE.Vector3; end: THREE.Vector3; color: string }>,
+        [arcs, markerPositions]
+    );
 
     return (
         <>
@@ -266,9 +319,9 @@ const GlobeScene = () => {
             ))}
 
             {/* Connection arcs */}
-            {arcs.map((arc, idx) => (
+            {threatArcs.map((arc) => (
                 <ThreatArc
-                    key={idx}
+                    key={arc.id}
                     start={arc.start}
                     end={arc.end}
                     color={arc.color}
@@ -289,7 +342,122 @@ const GlobeScene = () => {
     );
 };
 
+const getSeverityFromMagnitude = (value: number): Severity => {
+    if (value >= 15) return 'high';
+    if (value >= 7) return 'medium';
+    return 'low';
+};
+
+const normalizeRadarPairs = (pairs: RadarAttackPair[]) => {
+    const markerMap = new Map<string, MarkerInput>();
+    const arcList: ArcInput[] = [];
+    let totalMagnitude = 0;
+
+    const ensureMarker = (code: string, country: string, lat: number, lon: number, severity: Severity) => {
+        const normalizedCode = code.toUpperCase();
+        const existing = markerMap.get(normalizedCode);
+        if (existing && severityRank[existing.severity] >= severityRank[severity]) {
+            return existing;
+        }
+
+        const marker: MarkerInput = {
+            id: normalizedCode,
+            code: normalizedCode,
+            country,
+            lat,
+            lon,
+            severity,
+        };
+        markerMap.set(normalizedCode, marker);
+        return marker;
+    };
+
+    pairs.forEach((pair, idx) => {
+        const originCoords = getCountryCoordinates(pair.origin.code);
+        const targetCoords = getCountryCoordinates(pair.target.code);
+        if (!originCoords || !targetCoords) return;
+
+        const severity = getSeverityFromMagnitude(pair.magnitude);
+        ensureMarker(pair.origin.code, pair.origin.name, originCoords.lat, originCoords.lon, severity);
+        ensureMarker(pair.target.code, pair.target.name, targetCoords.lat, targetCoords.lon, severity);
+
+        arcList.push({
+            id: pair.id ?? `${pair.origin.code}-${pair.target.code}-${idx}`,
+            originCode: pair.origin.code.toUpperCase(),
+            targetCode: pair.target.code.toUpperCase(),
+            severity,
+            magnitude: pair.magnitude,
+        });
+        totalMagnitude += pair.magnitude;
+    });
+
+    if (!arcList.length) {
+        return null;
+    }
+
+    return {
+        markers: Array.from(markerMap.values()),
+        arcs: arcList,
+        totalMagnitude,
+    };
+};
+
 const Globe = () => {
+    const [markers, setMarkers] = useState<MarkerInput[]>(fallbackMarkers);
+    const [arcs, setArcs] = useState<ArcInput[]>(fallbackArcs);
+    const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+    const [totalMagnitude, setTotalMagnitude] = useState<number>(fallbackArcs.reduce((sum, arc) => sum + arc.magnitude, 0));
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const hydrate = async () => {
+            setLoading(true);
+            try {
+                const pairs = await fetchRadarAttackPairs();
+                const normalized = normalizeRadarPairs(pairs);
+                if (!normalized) {
+                    if (!cancelled) {
+                        setError('Radar returned no attack pairs for the selected window.');
+                    }
+                    return;
+                }
+
+                if (!cancelled) {
+                    setMarkers(normalized.markers);
+                    setArcs(normalized.arcs);
+                    setTotalMagnitude(normalized.totalMagnitude);
+                    setLastUpdated(new Date());
+                    setError(null);
+                }
+            } catch (err) {
+                if (cancelled) return;
+                const message = err instanceof Error ? err.message : 'Unable to reach Cloudflare Radar';
+                setError(message);
+                console.error('Radar globe feed error:', err);
+            } finally {
+                if (!cancelled) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        hydrate();
+        const interval = window.setInterval(hydrate, 60_000);
+        return () => {
+            cancelled = true;
+            window.clearInterval(interval);
+        };
+    }, []);
+
+    const isLive = Boolean(lastUpdated);
+    const formattedTime = lastUpdated
+        ? lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        : '—';
+    const aggregatedShare = totalMagnitude ? totalMagnitude.toFixed(1) : '—';
+
     return (
         <div className="relative h-64 w-full overflow-hidden rounded-2xl bg-black shadow-inner">
             <Canvas
@@ -297,20 +465,32 @@ const Globe = () => {
                 gl={{ antialias: true, alpha: false }}
                 style={{ background: '#000000' }}
             >
-                <GlobeScene />
+                <GlobeScene markers={markers} arcs={arcs} />
             </Canvas>
-            
-            {/* Stats Overlay */}
-            <div className="absolute bottom-4 left-4 rounded-xl border border-white/10 bg-black/60 px-4 py-2 backdrop-blur-md">
-                <div className="flex items-center gap-2">
+
+            <div className="absolute bottom-4 left-4 rounded-xl border border-white/10 bg-black/60 px-4 py-3 text-white backdrop-blur-md">
+                <div className="flex items-center gap-2 text-xs font-semibold">
                     <div className="relative flex h-2 w-2">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
-                        <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500"></span>
+                        <span className={`absolute inline-flex h-full w-full animate-ping rounded-full ${isLive ? 'bg-emerald-300' : 'bg-amber-400'} opacity-70`}></span>
+                        <span className={`relative inline-flex h-2 w-2 rounded-full ${isLive ? 'bg-emerald-400' : 'bg-amber-300'}`}></span>
                     </div>
-                    <span className="text-xs font-semibold text-white">
-                        {mockThreats.length} Active Threats
-                    </span>
+                    <span>{isLive ? `${arcs.length} live attack corridors` : `${arcs.length} demo corridors`}</span>
+                    {loading && (
+                        <svg className="h-3.5 w-3.5 animate-spin text-white/70" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V2C6.477 2 2 6.477 2 12h2z" />
+                        </svg>
+                    )}
                 </div>
+                <div className="mt-1 text-[11px] text-white/70">
+                    {isLive ? `Updated ${formattedTime}` : 'Awaiting Radar API token'}
+                    {error && <span className="ml-2 text-rose-300">{error}</span>}
+                </div>
+                {isLive && (
+                    <div className="mt-1 text-[11px] text-white/60">
+                        Σ share: {aggregatedShare}% of mitigated requests (last 30m)
+                    </div>
+                )}
             </div>
         </div>
     );

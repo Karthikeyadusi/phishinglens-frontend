@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import AnalyzeForm from '@components/AnalyzeForm';
 import AnalysisCard from '@components/AnalysisCard';
+import AgentTimeline from '@components/AgentTimeline';
+import AgentModePanel from '@components/AgentModePanel';
 import ScrollFade from '@components/ScrollFade';
 import type { AnalyzeResponse } from '@utils/mockApi';
 
@@ -164,62 +166,122 @@ const DetailsModal = ({ open, onClose, data }: DetailsModalProps) => {
   );
 };
 
+type ExperienceMode = 'intelligence' | 'agent';
+
 const Analyze = () => {
   const [latest, setLatest] = useState<AnalyzeResponse | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [experienceMode, setExperienceMode] = useState<ExperienceMode>('intelligence');
+  const stackedPanelClass = 'mx-auto w-full max-w-4xl';
+  const resultPanelRef = useRef<HTMLDivElement | null>(null);
 
   const handleComplete = useCallback((response: AnalyzeResponse) => {
     setLatest(response);
     setIsModalOpen(false);
   }, []);
 
+  useEffect(() => {
+    const shouldScroll = experienceMode === 'agent' ? Boolean(latest?.agent) : Boolean(latest);
+    if (!shouldScroll) return;
+
+    const timer = window.setTimeout(() => {
+      const target = resultPanelRef.current;
+      if (!target) return;
+      const offset = target.getBoundingClientRect().top + window.scrollY - 140;
+      window.scrollTo({ top: Math.max(offset, 0), behavior: 'smooth' });
+    }, 180);
+
+    return () => window.clearTimeout(timer);
+  }, [experienceMode, latest]);
+
+  const heroDescription =
+    experienceMode === 'intelligence'
+      ? 'Analyze URLs, text, and images with AI/ML models. Results combine Scanner + HuggingFace + Graph + OTX intelligence with 2-of-4 consensus voting.'
+      : 'Agent mode replays the autonomous plan → execute → reflect loop with guardrails, so you can watch every tool fire in sequence.';
+
+  const rightPanelPlaceholder = (
+    <div className="glass-surface flex h-64 w-full flex-col items-center justify-center rounded-3xl p-8 text-center text-slate-600 dark:text-slate-400">
+      <div className="mb-4 rounded-full border border-slate-200 bg-white/70 p-4 text-slate-400 dark:border-white/10 dark:bg-white/5">
+        <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      </div>
+      <p className="font-semibold">{experienceMode === 'intelligence' ? 'Awaiting submission…' : 'Run an analysis to watch the agent mission log.'}</p>
+      <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+        {experienceMode === 'intelligence'
+          ? 'Results will show verdict from Scanner, HF transformer, Graph GNN, and OTX feeds.'
+          : 'Agent mode animates each step along the guardrailed workflow.'}
+      </p>
+    </div>
+  );
+
+  const renderRightPanel = () => {
+    if (!latest) return rightPanelPlaceholder;
+    if (experienceMode === 'agent' && latest.agent) {
+      return <AgentModePanel agent={latest.agent} verdict={latest.verdict} />;
+    }
+    return <AnalysisCard data={latest} compact onViewDetails={() => setIsModalOpen(true)} />;
+  };
+
   return (
     <div className="mx-auto flex max-w-7xl flex-col gap-12 px-4 pb-20 pt-10 text-slate-900 dark:text-white sm:px-8">
       <ScrollFade>
         <div className="space-y-4">
-          <div className="inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-brand-600 dark:text-brand-300">
-            Multi-Modal Detection
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-widest text-brand-600 dark:text-brand-300">
+              {experienceMode === 'intelligence' ? 'Multi-Modal Detection' : 'Agent Mode Demo'}
+            </div>
+            <div className="flex overflow-hidden rounded-full border border-white/10 bg-white/5 text-xs font-semibold uppercase tracking-[0.3em] text-slate-400 dark:bg-white/10">
+              {(['intelligence', 'agent'] as ExperienceMode[]).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setExperienceMode(mode)}
+                  className={`px-4 py-2 transition ${
+                    experienceMode === mode
+                      ? 'bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-lg'
+                      : 'hover:text-white/90'
+                  }`}
+                >
+                  {mode === 'intelligence' ? 'Intelligence Mode' : 'Agent Mode'}
+                </button>
+              ))}
+            </div>
           </div>
           <h1 className="text-4xl font-black text-slate-900 dark:text-white sm:text-5xl">
-            4-Source <span className="text-gradient-brand">fusion analysis</span>
+            {experienceMode === 'intelligence' ? '4-Source ' : 'Autonomous '}<span className="text-gradient-brand">{experienceMode === 'intelligence' ? 'fusion analysis' : 'agent replay'}</span>
           </h1>
-          <p className="max-w-3xl text-lg text-slate-600 dark:text-slate-300">
-            Analyze URLs, text, and images with AI/ML models. Results combine Scanner + HuggingFace + Graph + OTX intelligence with
-            2-of-4 consensus voting.
-          </p>
+          <p className="max-w-3xl text-lg text-slate-600 dark:text-slate-300">{heroDescription}</p>
         </div>
       </ScrollFade>
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_400px]">
-        <ScrollFade>
+      <div className="space-y-10">
+        <ScrollFade className={stackedPanelClass}>
           <div className="relative">
             <div className="absolute -inset-0.5 rounded-[2rem] bg-gradient-to-r from-brand-500 to-purple-600 opacity-20 blur-xl" />
             <div className="relative rounded-[2rem] bg-white/90 p-px dark:bg-slate-950/60">
-              <AnalyzeForm showInlineResult={false} onComplete={handleComplete} />
+              <AnalyzeForm
+                showInlineResult={false}
+                onComplete={handleComplete}
+                modeStrategy={experienceMode === 'agent' ? 'auto' : 'manual'}
+                autoFocusOnMount
+              />
             </div>
           </div>
         </ScrollFade>
 
-        <ScrollFade delay={0.1}>
-          <div className="sticky top-24">
-            {latest ? (
-              <AnalysisCard data={latest} compact onViewDetails={() => setIsModalOpen(true)} />
-            ) : (
-              <div className="glass-surface flex h-64 flex-col items-center justify-center rounded-3xl p-8 text-center text-slate-600 dark:text-slate-400">
-                <div className="mb-4 rounded-full border border-slate-200 bg-white/70 p-4 text-slate-400 dark:border-white/10 dark:bg-white/5">
-                  <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <p className="font-semibold">Awaiting submission…</p>
-                <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                  Results will show verdict from Scanner, HF transformer, Graph GNN, and OTX feeds.
-                </p>
-              </div>
-            )}
+        <ScrollFade key={experienceMode} delay={0.1} className={stackedPanelClass}>
+          <div ref={resultPanelRef} className="w-full">
+            {renderRightPanel()}
           </div>
         </ScrollFade>
       </div>
+
+      {experienceMode === 'intelligence' && latest?.agent && (
+        <ScrollFade delay={0.15}>
+          <AgentTimeline agent={latest.agent} verdict={latest.verdict} />
+        </ScrollFade>
+      )}
 
       <DetailsModal open={isModalOpen} onClose={() => setIsModalOpen(false)} data={latest} />
     </div>

@@ -49,15 +49,8 @@ const About = () => {
             {/* Hero Section */}
             <section className="mx-auto max-w-5xl text-center">
                 <ScrollFade>
-                    <div className="inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/10 px-4 py-1.5 text-xs font-medium uppercase tracking-widest text-brand-600 backdrop-blur-sm dark:text-brand-300">
-                        <span className="relative flex h-2 w-2">
-                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-brand-400 opacity-75"></span>
-                            <span className="relative inline-flex h-2 w-2 rounded-full bg-brand-500"></span>
-                        </span>
-                        AICTE Innovation Challenge
-                    </div>
 
-                    <h1 className="mt-6 text-5xl font-black leading-[1.1] tracking-tight text-slate-900 dark:text-white sm:text-6xl lg:text-7xl">
+                    <h1 className="mt-2 text-5xl font-black leading-[1.1] tracking-tight text-slate-900 dark:text-white sm:text-6xl lg:text-7xl">
                         Defending the digital<br />
                         <span className="text-gradient-brand">frontier from phishing.</span>
                     </h1>

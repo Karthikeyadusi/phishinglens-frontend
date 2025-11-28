@@ -1,7 +1,11 @@
+import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import AnalyzeForm from '@components/AnalyzeForm';
 import ScrollFade from '@components/ScrollFade';
 import Globe from '@components/Globe';
+import ComparisonTable from '@components/ComparisonTable';
+import PerformanceChart from '@components/PerformanceChart';
 
 const features = [
     {
@@ -108,7 +112,19 @@ const HeroIllustration = () => (
     </div>
 );
 
-const Home = () => (
+const Home = () => {
+    const location = useLocation();
+
+    useEffect(() => {
+        if (location.hash) {
+            const target = document.querySelector(location.hash);
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+    }, [location.hash]);
+
+    return (
     <div className="space-y-24 px-4 pb-20 pt-10 sm:px-8 lg:px-10">
         <section className="mx-auto grid max-w-7xl gap-12 lg:grid-cols-[minmax(0,1fr)_380px]">
             <div className="space-y-10">
@@ -262,26 +278,39 @@ const Home = () => (
                 </div>
             </ScrollFade>
 
-            <div className="grid gap-6 md:grid-cols-2">
-                {[
-                    { title: 'Multi-modal fusion', desc: 'Text (DistilBERT), Image (YOLOv5/v8), URL, and Graph (GNN) analysis with 4-source consensus.' },
-                    { title: 'Graph analysis', desc: 'Domain relationships, WHOIS intel, SSL fingerprints, and redirection chain detection.' },
-                    { title: 'Edge deployment', desc: 'Chrome MV3 extension with <50ms latency and real-time blocking capabilities.' },
-                    { title: 'Continuous learning', desc: 'Automated retraining with PhishTank, OTX, and MISP feeds. Model drift detection included.' }
-                ].map((item, idx) => (
-                    <ScrollFade key={item.title} delay={idx * 0.05}>
-                        <div className="glass-surface group h-full rounded-3xl p-8 transition-all hover:shadow-2xl hover:-translate-y-1 dark:hover:bg-slate-900/60">
-                            <p className="text-sm font-mono text-brand-500/50">{`0${idx + 1}`}</p>
-                            <h3 className="mt-4 text-xl font-bold text-slate-900 dark:text-white group-hover:text-brand-500 dark:group-hover:text-brand-300 transition-colors">{item.title}</h3>
-                            <p className="mt-3 text-base leading-relaxed text-slate-600 dark:text-slate-400">
-                                {item.desc}
-                            </p>
-                        </div>
-                    </ScrollFade>
-                ))}
+            <div className="grid gap-6 lg:grid-cols-2">
+                <ScrollFade delay={0.1}>
+                    <PerformanceChart />
+                </ScrollFade>
+
+                <div className="grid gap-6">
+                    {[
+                        { title: 'Multi-modal fusion', desc: 'Text (DistilBERT), Image (YOLOv5/v8), URL, and Graph (GNN) analysis with 4-source consensus.' },
+                        { title: 'Graph analysis', desc: 'Domain relationships, WHOIS intel, SSL fingerprints, and redirection chain detection.' },
+                        { title: 'Edge deployment', desc: 'Chrome MV3 extension with <50ms latency and real-time blocking capabilities.' },
+                        { title: 'Continuous learning', desc: 'Automated retraining with PhishTank, OTX, and MISP feeds. Model drift detection included.' }
+                    ].map((item, idx) => (
+                        <ScrollFade key={item.title} delay={idx * 0.05 + 0.15}>
+                            <div className="glass-surface group h-full rounded-3xl p-8 transition-all hover:shadow-2xl hover:-translate-y-1 dark:hover:bg-slate-900/60">
+                                <p className="text-sm font-mono text-brand-500/50">{`0${idx + 1}`}</p>
+                                <h3 className="mt-4 text-xl font-bold text-slate-900 dark:text-white group-hover:text-brand-500 dark:group-hover:text-brand-300 transition-colors">{item.title}</h3>
+                                <p className="mt-3 text-base leading-relaxed text-slate-600 dark:text-slate-400">
+                                    {item.desc}
+                                </p>
+                            </div>
+                        </ScrollFade>
+                    ))}
+                </div>
             </div>
         </section>
+
+        <section className="mx-auto max-w-6xl">
+            <ScrollFade>
+                <ComparisonTable />
+            </ScrollFade>
+        </section>
     </div>
-);
+    );
+};
 
 export default Home;

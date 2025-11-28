@@ -1,13 +1,19 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import AnalysisCard from '@components/AnalysisCard';
-import { AnalyzeResponse, analyzeMockRequest } from '@utils/mockApi';
+import { AnalyzeResponse } from '@utils/mockApi';
+import { analyzeRequest } from '@utils/analysisService';
 
 type Mode = 'url' | 'text' | 'image';
+
+type ModeStrategy = 'manual' | 'auto';
 
 interface AnalyzeFormProps {
     compact?: boolean;
     onComplete?: (response: AnalyzeResponse) => void;
     showInlineResult?: boolean;
+    modeStrategy?: ModeStrategy;
+    autoFocusOnMount?: boolean;
 }
 
 const modeCopy: Record<Mode, string> = {
@@ -16,19 +22,39 @@ const modeCopy: Record<Mode, string> = {
     image: 'Enhanced OCR (Tesseract + EasyOCR + PaddleOCR) + YOLOv5/v8 brand detection. Live soon.'
 };
 
-const AnalyzeForm = ({ compact = false, onComplete, showInlineResult = true }: AnalyzeFormProps) => {
+const AnalyzeForm = ({
+    compact = false,
+    onComplete,
+    showInlineResult = true,
+    modeStrategy = 'manual',
+    autoFocusOnMount = false
+}: AnalyzeFormProps) => {
     const [mode, setMode] = useState<Mode>('url');
     const [value, setValue] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<AnalyzeResponse | null>(null);
+    const inputRef = useRef<HTMLTextAreaElement | HTMLInputElement | null>(null);
+    const assignInputRef = useCallback((node: HTMLTextAreaElement | HTMLInputElement | null) => {
+        inputRef.current = node;
+    }, []);
+    const { hash } = useLocation();
+
+    const detectMode = (input: string): Mode => {
+        if (/^https?:\/\//i.test(input.trim())) {
+            return 'url';
+        }
+        return 'text';
+    };
+
+    const resolvedMode: Mode = modeStrategy === 'auto' ? detectMode(value) : mode;
 
     const validate = () => {
         if (!value.trim()) {
             setError('Provide a URL or payload to analyze.');
             return false;
         }
-        if (mode === 'url' && !/^https?:\/\//i.test(value.trim())) {
+        if (resolvedMode === 'url' && !/^https?:\/\//i.test(value.trim())) {
             setError('Enter a valid URL that includes http(s)://');
             return false;
         }
@@ -38,7 +64,9 @@ const AnalyzeForm = ({ compact = false, onComplete, showInlineResult = true }: A
 
     const handleSubmit = async (evt: FormEvent<HTMLFormElement>) => {
         evt.preventDefault();
-        if (mode === 'image') {
+        const targetMode = modeStrategy === 'auto' ? detectMode(value) : mode;
+
+        if (targetMode === 'image') {
             setError('Image ingestion not available in this preview build.');
             return;
         }
@@ -46,13 +74,35 @@ const AnalyzeForm = ({ compact = false, onComplete, showInlineResult = true }: A
         setLoading(true);
         setResult(null);
         try {
-            const response = await analyzeMockRequest({ mode, value: value.trim() });
+            const response = await analyzeRequest({ mode: targetMode, value: value.trim() });
             setResult(response);
             onComplete?.(response);
+        } catch (requestError) {
+            console.error('Analysis request failed', requestError);
+            const message = requestError instanceof Error ? requestError.message : 'Unable to complete analysis right now.';
+            setError(message);
         } finally {
             setLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (!inputRef.current) return;
+        const shouldFocus = autoFocusOnMount || hash === '#analyze';
+        if (!shouldFocus) return;
+
+        // Defer focus slightly to allow smooth scroll from anchor navigation to finish.
+        const focusTimer = window.setTimeout(() => {
+            if (!inputRef.current) return;
+            inputRef.current.focus({ preventScroll: true });
+            const length = inputRef.current.value.length;
+            if (typeof inputRef.current.setSelectionRange === 'function') {
+                inputRef.current.setSelectionRange(length, length);
+            }
+        }, 120);
+
+        return () => window.clearTimeout(focusTimer);
+    }, [autoFocusOnMount, hash]);
 
     return (
         <section
@@ -65,44 +115,60 @@ const AnalyzeForm = ({ compact = false, onComplete, showInlineResult = true }: A
                     <p className="text-xs uppercase tracking-[0.3em] text-brand-500 dark:text-brand-300">Real-Time Analysis</p>
                     <h2 className="text-xl font-bold text-slate-900 dark:text-white">Multi-modal AI detection</h2>
                 </div>
-                <div className="flex gap-1 rounded-full border border-slate-200 bg-white/80 p-1.5 text-xs backdrop-blur-md shadow-sm dark:border-white/10 dark:bg-slate-950/50">
-                    {(['url', 'text', 'image'] as Mode[]).map((item) => (
-                        <button
-                            key={item}
-                            type="button"
-                            className={`relative rounded-full px-4 py-1.5 capitalize transition-all duration-300 ${mode === item ? 'bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-lg dark:bg-white dark:text-slate-900' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-white/60 dark:hover:text-white dark:hover:bg-white/10'
-                                }`}
-                            onClick={() => {
-                                setMode(item);
-                                setResult(null);
-                                setError('');
-                                setValue('');
-                            }}
-                            aria-pressed={mode === item}
-                            aria-label={`${item} mode`}
-                        >
-                            {item}
-                        </button>
-                    ))}
-                </div>
+                {modeStrategy === 'manual' ? (
+                    <div className="flex gap-1 rounded-full border border-slate-200 bg-white/80 p-1.5 text-xs backdrop-blur-md shadow-sm dark:border-white/10 dark:bg-slate-950/50">
+                        {(['url', 'text', 'image'] as Mode[]).map((item) => (
+                            <button
+                                key={item}
+                                type="button"
+                                className={`relative rounded-full px-4 py-1.5 capitalize transition-all duration-300 ${mode === item ? 'bg-gradient-to-r from-brand-500 to-brand-600 text-white shadow-lg dark:bg-white dark:text-slate-900' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-white/60 dark:hover:text-white dark:hover:bg-white/10'
+                                    }`}
+                                onClick={() => {
+                                    setMode(item);
+                                    setResult(null);
+                                    setError('');
+                                    setValue('');
+                                }}
+                                aria-pressed={mode === item}
+                                aria-label={`${item} mode`}
+                            >
+                                {item}
+                            </button>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="inline-flex items-center gap-2 rounded-full border border-brand-500/30 bg-brand-500/10 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] text-brand-600 dark:text-brand-200">
+                        Auto-detects URL/Text
+                    </div>
+                )}
             </div>
 
             <div className="mt-6 min-h-[3rem]">
                 <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-300" aria-live="polite">
-                    {modeCopy[mode]}
+                    {modeStrategy === 'manual'
+                        ? modeCopy[mode]
+                        : 'Paste any suspicious URL, email, or payload. Agent mode decides which analyzers should execute in sequence.'}
                 </p>
+                {modeStrategy === 'auto' && value && (
+                    <p className="mt-2 text-xs uppercase tracking-[0.4em] text-slate-400">
+                        Routing as {resolvedMode === 'url' ? 'URL Scan' : 'Text Scan'}
+                    </p>
+                )}
             </div>
 
             <form className="mt-6 space-y-6" onSubmit={handleSubmit}>
-                {mode === 'text' ? (
+                {modeStrategy === 'auto' || mode === 'text' ? (
                     <label className="block">
-                        <span className="text-sm font-medium text-slate-700 dark:text-white/80">Paste content</span>
+                        <span className="text-sm font-medium text-slate-700 dark:text-white/80">
+                            {modeStrategy === 'auto' ? 'Paste URL or content' : 'Paste content'}
+                        </span>
                         <textarea
                             className="focus-ring mt-2 w-full rounded-2xl border border-slate-200 bg-white/80 p-4 text-slate-900 placeholder:text-slate-400 shadow-sm transition-colors hover:border-brand-300 hover:bg-white focus:border-brand-500 dark:border-white/10 dark:bg-slate-950/50 dark:text-white dark:placeholder:text-white/20 dark:hover:bg-slate-950/70"
                             rows={compact ? 4 : 6}
                             value={value}
                             onChange={(e) => setValue(e.target.value)}
-                            placeholder="Paste email headers, body text, or suspicious messages here..."
+                            placeholder={modeStrategy === 'auto' ? 'Drop any suspicious URL, email, or transcript…' : 'Paste email headers, body text, or suspicious messages here...'}
+                            ref={assignInputRef}
                             required
                         />
                     </label>
@@ -115,12 +181,13 @@ const AnalyzeForm = ({ compact = false, onComplete, showInlineResult = true }: A
                             value={value}
                             onChange={(e) => setValue(e.target.value)}
                             placeholder="https://suspicious-site.com/login"
+                            ref={assignInputRef}
                             required
                         />
                     </label>
                 )}
 
-                {mode === 'image' && (
+                {modeStrategy === 'manual' && mode === 'image' && (
                     <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-4">
                         <div className="flex items-start gap-3">
                             <svg className="mt-0.5 h-5 w-5 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

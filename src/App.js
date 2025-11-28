@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import NavBar from '@components/NavBar';
 import Home from '@pages/Home';
+import Documentation from '@pages/Documentation';
 import { useTheme } from '@hooks/useTheme';
 const Analyze = lazy(() => import('@pages/Analyze'));
 const About = lazy(() => import('@pages/About'));
@@ -21,7 +22,7 @@ const FloatingCTA = () => {
 const AppShell = () => {
     const { theme } = useTheme();
     const shellClasses = theme === 'dark' ? 'bg-slate-950 text-slate-50' : 'bg-slate-50 text-slate-900';
-    return (_jsxs("div", { className: `min-h-screen ${shellClasses}`, children: [_jsx("a", { href: "#main", className: "absolute left-4 top-4 z-50 -translate-y-20 rounded bg-brand-600 px-4 py-2 text-sm font-semibold text-white focus-visible:translate-y-0", children: "Skip to content" }), _jsx(NavBar, {}), _jsx("main", { id: "main", className: "pt-24", children: _jsx(Suspense, { fallback: _jsx(LoadingFallback, {}), children: _jsxs(Routes, { children: [_jsx(Route, { path: "/", element: _jsx(Home, {}) }), _jsx(Route, { path: "/analyze", element: _jsx(Analyze, {}) }), _jsx(Route, { path: "/about", element: _jsx(About, {}) })] }) }) }), _jsx(FloatingCTA, {})] }));
+    return (_jsxs("div", { className: `min-h-screen ${shellClasses}`, children: [_jsx("a", { href: "#main", className: "absolute left-4 top-4 z-50 -translate-y-20 rounded bg-brand-600 px-4 py-2 text-sm font-semibold text-white focus-visible:translate-y-0", children: "Skip to content" }), _jsx(NavBar, {}), _jsx("main", { id: "main", className: "pt-24", children: _jsx(Suspense, { fallback: _jsx(LoadingFallback, {}), children: _jsxs(Routes, { children: [_jsx(Route, { path: "/", element: _jsx(Home, {}) }), _jsx(Route, { path: "/analyze", element: _jsx(Analyze, {}) }), _jsx(Route, { path: "/documentation", element: _jsx(Documentation, {}) }), _jsx(Route, { path: "/about", element: _jsx(About, {}) })] }) }) }), _jsx(FloatingCTA, {})] }));
 };
 function App() {
     return _jsx(AppShell, {});
