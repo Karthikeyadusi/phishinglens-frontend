@@ -46,7 +46,10 @@ type TextAnalysisResponse = {
   timestamp?: string;
 };
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? '';
+const RAW_API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? '';
+const DEV_PROXY_PATH = import.meta.env.VITE_DEV_PROXY_PATH?.replace(/\/$/, '') ?? '';
+
+const API_BASE_URL = import.meta.env.DEV && DEV_PROXY_PATH ? DEV_PROXY_PATH : RAW_API_BASE_URL;
 
 const ROUTES: Record<Exclude<AnalyzePayload['mode'], 'image'>, string> = {
   url: '/analyze_url_v2',
